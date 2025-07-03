@@ -206,8 +206,8 @@ def calculate_skywars_level(experience):
             if experience < xps[i]:
                 # Linear interpolation for levels below 12
                 if i == 0: # Handle case where XP is very low (e.g., 0-19)
-                    return experience / xps[0] if xps[0] > 0 else 0
-                return i + (experience - xps[i-1]) / (xps[i] - xps[i-1])
+                    return experience / max(1, xps[0])
+                return i + (experience - xps[i-1]) / (xps[i] - xps[i-1]) - 1
     return 0 # Fallback
 
 def get_skywars_prestige_name(level):
@@ -245,7 +245,7 @@ def get_skywars_prestige_name(level):
 
 def extract_skywars_important_stats(player_data):
     """
-    Extracs and calculates important Skywars statistics from player data
+    Extracts and calculates important Skywars statistics from player data
     based on the provided list, broken down by game mode.
 
     Args:
@@ -258,40 +258,90 @@ def extract_skywars_important_stats(player_data):
 
     # Safely get Skywars specific stats
     sw_data = _get_nested_stat(player_data, "stats.SkyWars", {})
+    
+    # DEBUG: Print raw SkyWars data structure
+    print("\n=== DEBUG: SkyWars Data Structure ===")
+    print("Available SkyWars keys:", list(sw_data.keys())[:20])  # First 20 keys
+    print("Experience field 'experience':", sw_data.get('experience'))
+    print("Experience field 'skywars_experience':", sw_data.get('skywars_experience'))
+    print("Sample kills field:", sw_data.get('kills'))
+    print("Sample wins field:", sw_data.get('wins'))
+    print("=====================================\n")
 
-    # --- General Skywars Stats ---
-    sw_experience = _get_nested_stat(sw_data, "skywars_experience")
+    # --- General Skywars Stats (always show) ---
+    # Try both possible experience field names
+    sw_experience = _get_nested_stat(sw_data, "experience", 0)
+    if sw_experience == 0:
+        sw_experience = _get_nested_stat(sw_data, "skywars_experience", 0)
+    
     skywars_level = calculate_skywars_level(sw_experience)
     skywars_stats["Level"] = round(skywars_level, 2)
     skywars_stats["Prestige"] = get_skywars_prestige_name(skywars_level)
+    skywars_stats["Experience"] = sw_experience
     skywars_stats["Coins"] = _get_nested_stat(sw_data, "coins")
     skywars_stats["Soul Well Uses"] = _get_nested_stat(sw_data, "soul_well_uses")
     skywars_stats["Soul Well Legendaries"] = _get_nested_stat(sw_data, "soul_well_leg")
     skywars_stats["Soul Well Rares"] = _get_nested_stat(sw_data, "soul_well_rares")
     skywars_stats["Paid Souls"] = _get_nested_stat(sw_data, "paid_souls")
     skywars_stats["Souls Gathered"] = _get_nested_stat(sw_data, "souls_gathered")
-    skywars_stats["Eggs Thrown"] = _get_nested_stat(sw_data, "egg_thrown")
-    skywars_stats["Enderpearls Thrown"] = _get_nested_stat(sw_data, "enderpearls_thrown")
+    
+    # Overall Kills, Assists, Deaths, Wins, Losses, and their ratios
+    overall_kills = _get_nested_stat(sw_data, "kills")
+    overall_assists = _get_nested_stat(sw_data, "assists")
+    overall_deaths = _get_nested_stat(sw_data, "deaths")
+    overall_wins = _get_nested_stat(sw_data, "wins")
+    overall_losses = _get_nested_stat(sw_data, "losses")
 
-    # Define Skywars modes and their API prefixes for specific breakdown
-    skywars_modes_breakdown = {
-        "Overall": "",
+    skywars_stats["Kills (Overall)"] = overall_kills
+    skywars_stats["Assists (Overall)"] = overall_assists
+    skywars_stats["Deaths (Overall)"] = overall_deaths
+    skywars_stats["Wins (Overall)"] = overall_wins
+    skywars_stats["Losses (Overall)"] = overall_losses
+
+    skywars_stats["Kill Death Ratio (KDR) (Overall)"] = round(overall_kills / max(1, overall_deaths), 2) if overall_deaths > 0 else "N/A"
+    skywars_stats["Win Loss Ratio (WLR) (Overall)"] = round(overall_wins / max(1, overall_losses), 2) if overall_losses > 0 else "N/A"
+
+    # These stats are only for "Overall" as per user request
+    skywars_stats["Eggs Thrown (Overall)"] = _get_nested_stat(sw_data, "egg_thrown")
+    skywars_stats["Enderpearls Thrown (Overall)"] = _get_nested_stat(sw_data, "enderpearls_thrown")
+    arrows_shot_overall = _get_nested_stat(sw_data, "arrows_shot")
+    arrows_hit_overall = _get_nested_stat(sw_data, "arrows_hit")
+    skywars_stats["Arrows Shot (Overall)"] = arrows_shot_overall
+    skywars_stats["Arrows Hit (Overall)"] = arrows_hit_overall
+    skywars_stats["Arrow Hit/Shot Ratio (Overall)"] = round(arrows_hit_overall / max(1, arrows_shot_overall), 2) if arrows_shot_overall > 0 else "N/A"
+
+    # Define Skywars modes and their API prefixes (CORRECTED)
+    skywars_modes = {
         "Solo Normal": "solo_normal_",
-        "Doubles Normal": "team_normal_", # Often refers to doubles or general teams
         "Solo Insane": "solo_insane_",
-        "Doubles Insane": "team_insane_",
-        "Mega Normal": "mega_normal_",
-        "Mega Insane": "mega_doubles_", # Mega Insane usually refers to Mega Doubles
-        "Mini": "mini_", # Common prefix for mini modes
-        "Labs": "lab_", # Common prefix for lab modes
+        "Teams Normal": "team_normal_",
+        "Teams Insane": "team_insane_",
+        "Ranked": "ranked_normal_",
+        "Mega": "mega_",
+        "Mini": "mini_",
+        "Labs": "lab_",
     }
 
-    # --- Stats broken down by specific game mode ---
-    for mode_name, prefix in skywars_modes_breakdown.items():
+    # DEBUG: Check what mode-specific keys exist
+    print("=== DEBUG: Mode-specific keys ===")
+    for mode_name, prefix in skywars_modes.items():
+        sample_kills = _get_nested_stat(sw_data, f"{prefix}kills")
+        sample_wins = _get_nested_stat(sw_data, f"{prefix}wins")
+        if sample_kills > 0 or sample_wins > 0:
+            print(f"{mode_name} ({prefix}): kills={sample_kills}, wins={sample_wins}")
+    print("==================================\n")
+
+    # --- Stats broken down by specific game modes ---
+    for mode_name, prefix in skywars_modes.items():
         # Kills
         kills = _get_nested_stat(sw_data, f"{prefix}kills")
-        if kills > 0:
+        if kills > 0:  # Only show if there's actual data
             skywars_stats[f"Kills ({mode_name})"] = kills
+
+        # Assists
+        assists = _get_nested_stat(sw_data, f"{prefix}assists")
+        if assists > 0:
+            skywars_stats[f"Assists ({mode_name})"] = assists
 
         # Deaths
         deaths = _get_nested_stat(sw_data, f"{prefix}deaths")
@@ -308,32 +358,14 @@ def extract_skywars_important_stats(player_data):
         if losses > 0:
             skywars_stats[f"Losses ({mode_name})"] = losses
 
-        # Calculated Ratios (only if relevant stats exist and are not zero)
-        # KDR
+        # Calculated Ratios (only show if there's actual data)
         if kills > 0 or deaths > 0:
-            skywars_stats[f"Kill Death Ratio (KDR) ({mode_name})"] = round(kills / max(1, deaths), 2) if deaths > 0 else "N/A"
-        
-        # WLR
+            kdr_value = round(kills / max(1, deaths), 2) if deaths > 0 else "N/A"
+            skywars_stats[f"Kill Death Ratio (KDR) ({mode_name})"] = kdr_value
+
         if wins > 0 or losses > 0:
-            skywars_stats[f"Win Loss Ratio (WLR) ({mode_name})"] = round(wins / max(1, losses), 2) if losses > 0 else "N/A"
-
-        # The following are less common for Skywars and are removed as per user request focus
-        # on KDR, WLR, Wins, Losses, Kills, Deaths.
-        # Final Kills and Final Deaths are primarily Bedwars stats.
-        # FKDR is not applicable in the same way as Bedwars.
-        # Arrows Shot (mode specific)
-        arrows_shot = _get_nested_stat(sw_data, f"{prefix}arrows_shot")
-        if arrows_shot > 0:
-            skywars_stats[f"Arrows Shot ({mode_name})"] = arrows_shot
-
-        # Arrows Hit (mode specific)
-        arrows_hit = _get_nested_stat(sw_data, f"{prefix}arrows_hit")
-        if arrows_hit > 0:
-            skywars_stats[f"Arrows Hit ({mode_name})"] = arrows_hit
-
-        # Arrow Hit/Shot Ratio
-        if (arrows_shot > 0 or arrows_hit > 0) and (arrows_shot != 0 or arrows_hit != 0):
-            skywars_stats[f"Arrow Hit/Shot Ratio ({mode_name})"] = round(arrows_hit / max(1, arrows_shot), 2) if arrows_shot > 0 else "N/A"
+            wlr_value = round(wins / max(1, losses), 2) if losses > 0 else "N/A"
+            skywars_stats[f"Win Loss Ratio (WLR) ({mode_name})"] = wlr_value
 
     return skywars_stats
 
@@ -363,6 +395,7 @@ if __name__ == "__main__":
             if game_mode_input.lower() == "bedwars":
                 important_bedwars_stats = extract_bedwars_important_stats(player_info)
                 print("\n--- Important Bedwars Stats ---")
+                print("If you don't have any data in a specific gamemode or stat, it won't be shown.")
                 for stat, value in important_bedwars_stats.items():
                     # Format numbers with commas for readability
                     if isinstance(value, (int, float)) and not isinstance(value, bool):
