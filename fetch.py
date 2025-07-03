@@ -245,7 +245,7 @@ def get_skywars_prestige_name(level):
 
 def extract_skywars_important_stats(player_data):
     """
-    Extracts and calculates important Skywars statistics from player data
+    Extracs and calculates important Skywars statistics from player data
     based on the provided list, broken down by game mode.
 
     Args:
@@ -273,31 +273,25 @@ def extract_skywars_important_stats(player_data):
     skywars_stats["Eggs Thrown"] = _get_nested_stat(sw_data, "egg_thrown")
     skywars_stats["Enderpearls Thrown"] = _get_nested_stat(sw_data, "enderpearls_thrown")
 
-    # Define Skywars modes and their API prefixes (common ones)
-    # These prefixes are based on how Hypixel structures its API data for different modes.
-    skywars_modes = {
-        "Overall": "", # For general stats that apply to all modes combined
+    # Define Skywars modes and their API prefixes for specific breakdown
+    skywars_modes_breakdown = {
+        "Overall": "",
         "Solo Normal": "solo_normal_",
+        "Doubles Normal": "team_normal_", # Often refers to doubles or general teams
         "Solo Insane": "solo_insane_",
-        "Team Normal": "team_normal_", # Often refers to doubles or general teams
-        "Team Insane": "team_insane_",
+        "Doubles Insane": "team_insane_",
         "Mega Normal": "mega_normal_",
         "Mega Insane": "mega_doubles_", # Mega Insane usually refers to Mega Doubles
         "Mini": "mini_", # Common prefix for mini modes
         "Labs": "lab_", # Common prefix for lab modes
     }
 
-    # --- Stats broken down by game mode ---
-    for mode_name, prefix in skywars_modes.items():
+    # --- Stats broken down by specific game mode ---
+    for mode_name, prefix in skywars_modes_breakdown.items():
         # Kills
         kills = _get_nested_stat(sw_data, f"{prefix}kills")
         if kills > 0:
             skywars_stats[f"Kills ({mode_name})"] = kills
-
-        # Assists
-        assists = _get_nested_stat(sw_data, f"{prefix}assists")
-        if assists > 0:
-            skywars_stats[f"Assists ({mode_name})"] = assists
 
         # Deaths
         deaths = _get_nested_stat(sw_data, f"{prefix}deaths")
@@ -314,6 +308,19 @@ def extract_skywars_important_stats(player_data):
         if losses > 0:
             skywars_stats[f"Losses ({mode_name})"] = losses
 
+        # Calculated Ratios (only if relevant stats exist and are not zero)
+        # KDR
+        if kills > 0 or deaths > 0:
+            skywars_stats[f"Kill Death Ratio (KDR) ({mode_name})"] = round(kills / max(1, deaths), 2) if deaths > 0 else "N/A"
+        
+        # WLR
+        if wins > 0 or losses > 0:
+            skywars_stats[f"Win Loss Ratio (WLR) ({mode_name})"] = round(wins / max(1, losses), 2) if losses > 0 else "N/A"
+
+        # The following are less common for Skywars and are removed as per user request focus
+        # on KDR, WLR, Wins, Losses, Kills, Deaths.
+        # Final Kills and Final Deaths are primarily Bedwars stats.
+        # FKDR is not applicable in the same way as Bedwars.
         # Arrows Shot (mode specific)
         arrows_shot = _get_nested_stat(sw_data, f"{prefix}arrows_shot")
         if arrows_shot > 0:
@@ -323,15 +330,6 @@ def extract_skywars_important_stats(player_data):
         arrows_hit = _get_nested_stat(sw_data, f"{prefix}arrows_hit")
         if arrows_hit > 0:
             skywars_stats[f"Arrows Hit ({mode_name})"] = arrows_hit
-
-        # Calculated Ratios (only if relevant stats exist and are not zero)
-        # KDR
-        if (kills > 0 or deaths > 0) and (kills != 0 or deaths != 0):
-            skywars_stats[f"Kill Death Ratio (KDR) ({mode_name})"] = round(kills / max(1, deaths), 2) if deaths > 0 else "N/A"
-        
-        # WLR
-        if (wins > 0 or losses > 0) and (wins != 0 or losses != 0):
-            skywars_stats[f"Win Loss Ratio (WLR) ({mode_name})"] = round(wins / max(1, losses), 2) if losses > 0 else "N/A"
 
         # Arrow Hit/Shot Ratio
         if (arrows_shot > 0 or arrows_hit > 0) and (arrows_shot != 0 or arrows_hit != 0):
