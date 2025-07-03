@@ -39,7 +39,7 @@ async def on_message(message):
 @bot.command()
 async def hello(ctx):
     await ctx.send(f'Hello {ctx.author.name}')
-    
+
 @bot.command()
 async def assign(ctx):
     role = discord.utils.get(ctx.guild.roles, name=cringer)
@@ -60,7 +60,7 @@ async def unassign(ctx):
     else:
         await ctx.send(f"Role doesn't exist")
 
-@bot.command()
+@bot.command() 
 async def dm(ctx, *, msg):
     await ctx.author.send(msg)
     
